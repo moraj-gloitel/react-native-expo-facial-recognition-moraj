@@ -48,7 +48,8 @@
     "type-check": "tsc --noEmit",
     "clean": "expo r -c && watchman watch-del-all && rm -rf node_modules && npm install",
     "test": "jest",
-    "postinstall": "patch-package && npx pod-install"
+    "postinstall": "patch-package && npx pod-install",
+    "build:android:apk": "yarn run prebuild && yarn run bundle:android && cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.1.2",
@@ -57,6 +58,7 @@
     "@tensorflow/tfjs-react-native": "^1.0.0",
     "expo": "~53.0.20",
     "expo-asset": "~11.1.7",
+    "expo-build-properties": "~0.14.8",
     "expo-camera": "~16.1.11",
     "expo-clipboard": "~7.1.5",
     "expo-dev-client": "~5.2.4",

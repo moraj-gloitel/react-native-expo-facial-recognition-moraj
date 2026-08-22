@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface RegisteredFace {
   id: string;
   name: string;
-  embedding: number[];
+  embedding: number[] | number[][]; // Supports single or multiple embeddings
   photoPath?: string;
   timestamp: number;
 }

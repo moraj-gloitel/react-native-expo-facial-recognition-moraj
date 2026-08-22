@@ -230,24 +230,46 @@ class FaceRecognitionService {
   }
 
   /**
-   * Compare two face embeddings and return similarity metrics
-   * This method ensures normalization for backwards compatibility
+   * Compare a face embedding against one or more registered embeddings and return the best match
    */
   compareFaces(
     embedding1: number[],
-    embedding2: number[]
+    embedding2: number[] | number[][]
   ): {
     similarity: number;
     distance: number;
     isMatch: boolean;
     confidence: number;
   } {
-    // Ensure both embeddings are normalized for consistent comparison
     const normalized1 = this.l2Normalize(embedding1);
-    const normalized2 = this.l2Normalize(embedding2);
-
-    // Use the raw comparison method
-    return this.compareEmbeddingsRaw(normalized1, normalized2);
+    
+    // Check if embedding2 is a single embedding or an array of embeddings
+    const isMultipleEmbeddings = Array.isArray(embedding2[0]);
+    
+    if (isMultipleEmbeddings) {
+      let bestMatch = null;
+      let highestSimilarity = -1;
+      
+      const embeddings = embedding2 as number[][];
+      
+      for (const emb of embeddings) {
+        const normalized2 = this.l2Normalize(emb);
+        const result = this.compareEmbeddingsRaw(normalized1, normalized2);
+        
+        if (result.similarity > highestSimilarity) {
+          highestSimilarity = result.similarity;
+          bestMatch = result;
+        }
+      }
+      
+      return bestMatch || this.compareEmbeddingsRaw(normalized1, this.l2Normalize(embeddings[0] || []));
+    } else {
+      // Ensure both embeddings are normalized for consistent comparison
+      const normalized2 = this.l2Normalize(embedding2 as number[]);
+  
+      // Use the raw comparison method
+      return this.compareEmbeddingsRaw(normalized1, normalized2);
+    }
   }
 
   /**

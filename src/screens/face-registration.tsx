@@ -26,7 +26,7 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
   const [userName, setUserName] = useState('');
   const [faceStatus, setFaceStatus] = useState<{ yaw: string; pitch: string; eye: string } | null>(null);
   const [isReadyToCapture, setIsReadyToCapture] = useState(false);
-  const [capturedPhoto, setCapturedPhoto] = useState<{ path: string; base64?: string } | null>(null);
+  const [capturedPhotos, setCapturedPhotos] = useState<{ path: string; base64?: string }[]>([]);
   const [currentScreen, setCurrentScreen] = useState<'selection' | 'camera' | 'photo-review'>('selection');
   const [showBenchmarks, setShowBenchmarks] = useState(true);
   const [currentFaceBounds, setCurrentFaceBounds] = useState<any>(null);
@@ -104,7 +104,7 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
     autoScale: true,
   }).current;
 
-  async function registerFace(base64: string) {
+  async function registerFace(base64s: string[]) {
     try {
       setRegistering(true);
       console.log('Registering face with ArcFace model...');
@@ -112,11 +112,15 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
       // Start timing for face registration
       performanceMonitor.startTimer('face-registration');
 
-      // Generate normalized face embedding using the centralized service
-      const embedding = await faceRecognitionService.generateFaceEmbedding(base64, { normalize: true });
+      const embeddings: number[][] = [];
+      
+      for (const base64 of base64s) {
+        const embedding = await faceRecognitionService.generateFaceEmbedding(base64, { normalize: true });
+        if (embedding) embeddings.push(embedding);
+      }
 
-      if (!embedding) {
-        console.error('Failed to generate face embedding');
+      if (embeddings.length === 0) {
+        console.error('Failed to generate any face embeddings');
         Alert.alert('Error', 'Failed to process face. Please try again.');
         setRegistering(false);
         return;
@@ -127,8 +131,8 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
         const faceData = {
           id: faceStorage.generateFaceId(),
           name: userName,
-          embedding: embedding,
-          photoPath: capturedPhoto?.path,
+          embedding: embeddings,
+          photoPath: capturedPhotos[0]?.path, // Store the first photo as the main avatar
           timestamp: Date.now(),
         };
 
@@ -151,7 +155,7 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
               onPress: () => {
                 setRegistered(false);
                 setUserName('');
-                setCapturedPhoto(null);
+                setCapturedPhotos([]);
                 setCurrentScreen('selection');
               },
             },
@@ -173,7 +177,7 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
         ]);
       }
 
-      return embedding;
+      return embeddings;
     } catch (error) {
       console.error('Error registering face:', error);
       Alert.alert('Error', 'Failed to register face. Please try again.');
@@ -206,12 +210,19 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
 
       console.log('Photo processed successfully using service');
 
-      // Store the photo and base64 for later registration
-      setCapturedPhoto({
+      const newPhoto = {
         path: photo.path,
         base64: processedPhoto.base64,
+      };
+
+      // Store the photo and base64 for later registration
+      setCapturedPhotos((prev) => {
+        const updated = [...prev, newPhoto];
+        if (updated.length >= 3) {
+          setCurrentScreen('photo-review'); // Move to photo review screen when 3 photos are captured
+        }
+        return updated;
       });
-      setCurrentScreen('photo-review'); // Move to photo review screen
     } catch (err) {
       console.error('Error processing captured photo:', err);
       Alert.alert('Error', 'Failed to process photo. Please try again.');
@@ -219,12 +230,13 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
   }
 
   async function completeRegistration() {
-    if (!capturedPhoto?.base64 || !userName.trim()) {
-      Alert.alert('Error', 'Photo or name is missing');
+    const base64s = capturedPhotos.map((p) => p.base64).filter(Boolean) as string[];
+    if (base64s.length === 0 || !userName.trim()) {
+      Alert.alert('Error', 'Photos or name are missing');
       return;
     }
 
-    await registerFace(capturedPhoto.base64);
+    await registerFace(base64s);
   }
 
   const handleFacesDetection = async (faces: Face[]) => {
@@ -314,10 +326,12 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
 
       console.log('Gallery photo processed successfully with face detection');
       // Store the photo and base64 for registration
-      setCapturedPhoto({
-        path: uri,
-        base64: processedPhoto.base64,
-      });
+      setCapturedPhotos([
+        {
+          path: uri,
+          base64: processedPhoto.base64,
+        },
+      ]);
       setCurrentScreen('photo-review'); // Move to photo review screen
     } catch (err) {
       console.error('Error processing gallery photo:', err);
@@ -329,7 +343,7 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
   };
 
   const handleRetakePhoto = () => {
-    setCapturedPhoto(null);
+    setCapturedPhotos([]);
     setCurrentScreen('selection');
     setUserName('');
     setRegistered(false);
@@ -403,7 +417,12 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
         {/* Title */}
         <View style={styles.titleContainer}>
           <Text style={styles.titleText}>Face Registration</Text>
-          <Text style={styles.subtitleText}>Position your face to capture</Text>
+          <Text style={styles.subtitleText}>
+            {capturedPhotos.length === 0 && 'Position your face in the center'}
+            {capturedPhotos.length === 1 && 'Turn your head slightly to the left'}
+            {capturedPhotos.length === 2 && 'Turn your head slightly to the right'}
+          </Text>
+          <Text style={styles.progressText}>Captured: {capturedPhotos.length}/3</Text>
         </View>
 
         {/* Face Detection Info */}
@@ -425,7 +444,9 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
             onPress={handleCaptureFace}
             disabled={!isReadyToCapture}
           >
-            <Text style={styles.captureButtonText}>📷 Capture Face</Text>
+            <Text style={styles.captureButtonText}>
+              📷 Capture Photo {capturedPhotos.length + 1}
+            </Text>
           </TouchableOpacity>
 
           {!isReadyToCapture && (
@@ -446,8 +467,12 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
   if (currentScreen === 'photo-review') {
     return (
       <View style={styles.photoReviewContainer}>
-        {/* Captured Photo */}
-        {capturedPhoto && <Image source={{ uri: `file://${capturedPhoto.path}` }} style={styles.capturedImage} />}
+        {/* Captured Photo(s) */}
+        <View style={styles.capturedImagesContainer}>
+          {capturedPhotos.map((photo, index) => (
+            <Image key={index} source={{ uri: `file://${photo.path}` }} style={styles.capturedImageThumb} />
+          ))}
+        </View>
 
         {/* Overlay Controls */}
         <View style={styles.photoOverlay}>
@@ -612,10 +637,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  capturedImage: {
+  capturedImagesContainer: {
     width: '100%',
     height: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+    gap: 10,
+  },
+  capturedImageThumb: {
+    width: '45%',
+    aspectRatio: 1,
     resizeMode: 'cover',
+    borderRadius: 10,
+  },
+  progressText: {
+    color: '#4CAF50',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 5,
   },
   photoOverlay: {
     position: 'absolute',
