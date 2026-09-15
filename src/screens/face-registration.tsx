@@ -218,8 +218,8 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
       // Store the photo and base64 for later registration
       setCapturedPhotos((prev) => {
         const updated = [...prev, newPhoto];
-        if (updated.length >= 3) {
-          setCurrentScreen('photo-review'); // Move to photo review screen when 3 photos are captured
+        if (updated.length >= 1) {
+          setCurrentScreen('photo-review'); // Move to photo review screen when 1 photo is captured
         }
         return updated;
       });
@@ -419,10 +419,8 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
           <Text style={styles.titleText}>Face Registration</Text>
           <Text style={styles.subtitleText}>
             {capturedPhotos.length === 0 && 'Position your face in the center'}
-            {capturedPhotos.length === 1 && 'Turn your head slightly to the left'}
-            {capturedPhotos.length === 2 && 'Turn your head slightly to the right'}
           </Text>
-          <Text style={styles.progressText}>Captured: {capturedPhotos.length}/3</Text>
+          <Text style={styles.progressText}>Captured: {capturedPhotos.length}/1</Text>
         </View>
 
         {/* Face Detection Info */}
@@ -445,7 +443,7 @@ export default function FaceRegistrationScreen({ onBack }: FaceRegistrationScree
             disabled={!isReadyToCapture}
           >
             <Text style={styles.captureButtonText}>
-              📷 Capture Photo {capturedPhotos.length + 1}
+              📷 Capture Photo
             </Text>
           </TouchableOpacity>
 
